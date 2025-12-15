@@ -39,6 +39,8 @@ const stage = new Konva.Stage({
   draggable: true
 });
 
+stage.container().style.backgroundColor = '#f0f0f0';
+
 const layer = new Konva.Layer();
 stage.add(layer);
 
@@ -90,55 +92,134 @@ stage.on('wheel', (e) => {
     y: pointer.y - mousePointTo.y * newScale,
   };
   stage.position(newPos);
+
+  const localScale = stage.scale();
+  rebuildGrid(newPos, localScale);
 });
 
 function makeGridLines(topLeft, bottomRight, spacingX, spacingY)
 {
 	var xArr = [];
 	var yArr = [];
+
+	const xMin = Math.min(topLeft.x, bottomRight.x);
+	const xMax = Math.max(topLeft.x, bottomRight.x);
+	const yMin = Math.min(topLeft.y, bottomRight.y);
+	const yMax = Math.max(topLeft.y, bottomRight.y);
 	
-	// Adjust grid to be centered in 
-	
-	const gxStart = Math.floor(topLeft.x/spacingX);
-	const gxStop = Math.floor(bottomRight.x/spacingX);
+	const gxStart = Math.floor(xMin/spacingX);
+	const gxStop = Math.floor(xMax/spacingX);
 	for(var i = gxStart; i< gxStop; i++)
 	{
 		if(i != 0)
-			xArr.push(i*spacingX+(stage.width()/2)%spacingX);
+			xArr.push(i*spacingX);
 	}
 		
-	
-	const gyStart = Math.floor(topLeft.y/spacingY);
-	const gyStop = Math.floor(bottomRight.y/spacingY); 
+	const gyStart = Math.floor(yMin/spacingY);
+	const gyStop = Math.floor(yMax/spacingY); 
 	for(var i = gyStart; i< gyStop; i++)
 	{
 		if(i != 0)
-			yArr.push(i*spacingY+(stage.height()/2)%spacingY);
+			yArr.push(i*spacingY);
 	}
-		
 	
 	return {x:xArr, y:yArr};
 }
 const gridLayer = new Konva.Layer();
 stage.add(gridLayer);
-	
-stage.on('dragend', (e) => {
+
+function writeMessage(message)
+{
+	  const info = document.getElementById('info');
+	  info.innerHTML = message;
+}
+
+function canvasToKonvaCoords(pos)
+{
 	const scale = stage.scale();
-	const topLeft = {
-		x: -e.currentTarget.position().x/scale.x,
-		y: -e.currentTarget.position().y/scale.y};
-	const bottomRight = {
-		x: topLeft.x+stage.width()/scale.x, 
-		y: topLeft.y+stage.height()/scale.y};
+	return {
+		x: (pos.x - stage.x()) / scale.x,
+		y: (pos.y - stage.y()) / scale.y
+	};
+}
+
+function konvaToWorldCoords(pos)
+{
+	// Just offset by original size
+	return {
+		x:   pos.x - stage.width() / 2,
+		y:  -pos.y + stage.height() / 2
+	};
+}
+
+// And reverse
+function worldToKonvaCoords(pos)
+{
+	return {
+		x: pos.x + stage.width() / 2,
+		y: -pos.y + stage.height() / 2
+	};
+}	
+
+// handle stage click
+stage.on('click', function (e) {
+  //if (e.target === stage) {
+  	let msg = 'clicked on stage' + e.currentTarget.getPointerPosition().x + ',' + e.currentTarget.getPointerPosition().y;
+	msg += ' => ';
+	const kpos = canvasToKonvaCoords(e.currentTarget.getPointerPosition());
+	msg += 'konva coords ' + kpos.x + ',' + kpos.y;
+	const wpos = konvaToWorldCoords(kpos);
+	msg += ' => world coords ' + wpos.x + ',' + wpos.y;
+	const kpos2 = worldToKonvaCoords(wpos);
+	msg += ' => konva coords ' + kpos2.x + ',' + kpos2.y;
+    writeMessage(msg);
+
+	const circle = new Konva.Circle({
+		x: kpos2.x,
+		y: kpos2.y,
+		radius: 10,
+		fill: 'blue',
+		draggable: true,
+	});
+	layer.add(circle);
+	//layer.draw();
+    return;
+  //}
+  //writeMessage('clicked on ' + e.target.name());
+});
+
+/// Rebuild grid based on position and scale
+/// Position is top-left corner in Konva coords
+/// Scale is XY scale
+function rebuildGrid(postition, scale)
+{
+	const topLeft = postition;
+	// Move to actual viewport coords 
+	const topLeftVP = {
+		x: -topLeft.x / scale.x,
+		y: -topLeft.y / scale.y
+	};
+
+	const width = stage.width();
+	const height = stage.height();
+
+	const bottomRightVP = {
+		x: (topLeftVP.x + width / scale.x), 
+		y: (topLeftVP.y + height / scale.y),
+	};
+
+	//console.log("tlv" + JSON.stringify(topLeftVP));
+
+	const topLeftWorld = konvaToWorldCoords(topLeftVP);
+	const bottomRightWorld = konvaToWorldCoords(bottomRightVP);
+
 	// Viewport coords in canvas
-	console.log(topLeft)
-	console.log(bottomRight)
+	console.log("tl" + JSON.stringify(topLeftWorld));
+	console.log("br" + JSON.stringify(bottomRightWorld));
 	
 	// Update grid, , for now always show layer at some position
-	
 	const spacing = 50;
-	
-	const gridLines = makeGridLines(topLeft, bottomRight, spacing, spacing);
+	const gridLines = makeGridLines(topLeftWorld, bottomRightWorld, spacing, spacing);
 	console.log(gridLines.x)
 	console.log(gridLines.y)
 	
@@ -151,48 +232,23 @@ stage.on('dragend', (e) => {
 			//{
 			//	color = 'blue';
 			//}
+			const kPos = worldToKonvaCoords({x:x, y:y});
 			const dot = new Konva.Circle({
-				x: x,
-				y: y,
+				x: kPos.x,
+				y: kPos.y,
 				radius: 5,
 				fill: color,
 			});
 			gridLayer.add(dot);
 		}
 	}
+}
 	
-	
-	
-	
-
- //this sucks, we are actually more interested in te viewport coords
-	// Place at first grid node?
-	// Transform to world coords
-	/*
-	const wx = topLeft.x - stage.width() / 2;
-	const wy = topLeft.y + stage.height() / 2;
-	console.log("wx " + wx + " wy "+wy)
-	//adjust to grid space
-	
-	const px = Math.floor(wx/spacing) +1;
-	const py = Math.floor(wy/spacing) +1;
-	console.log("gx " + px + " gy "+py)
-	
-	// adjust to world space
-	
-	console.log("px " + px*spacing + " py "+py*spacing)
-	
-	const wx2 = px*spacing + stage.width() / 2
-	const wy2 = py*spacing - stage.height() / 2
-	console.log("wx2 " + wx2 + " wy2 "+wy2)
-	
-	const newPos = {
-		x: wx2,
-		y: wy2
-	};
-	circle2.position(newPos);
-	*/
-	
-	
-	
+stage.on('dragend', (e) => {
+	const scale = stage.scale();
+	// Top left corner of the "normal" stage
+	const pos = e.currentTarget.position();
+	rebuildGrid(pos, scale);
 });
+
+rebuildGrid({x:0, y:0}, {x:1, y:1});
