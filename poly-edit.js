@@ -29,13 +29,14 @@ layer.add(circle);
 stage.add(layer);
 */
 // so this works as draggable
-const width = window.innerWidth;
-const height = window.innerHeight;
+const container = document.getElementById('container');
+const sceneWidth = container.clientWidth;
+const sceneHeight = container.clientHeight;
 
 const stage = new Konva.Stage({
   container: 'container',
-  width: width,
-  height: height,
+  width: sceneWidth,
+  height: sceneHeight,
   draggable: true
 });
 
@@ -252,3 +253,30 @@ stage.on('dragend', (e) => {
 });
 
 rebuildGrid({x:0, y:0}, {x:1, y:1});
+
+// Function to make the stage responsive
+function fitStageIntoParentContainer() {
+  // Get the container element
+  const container = document.getElementById('container');
+  
+  // Make the container take up the full width
+  container.style.width = '100%';
+  
+  // Get current container width
+  const containerWidth = container.offsetWidth;
+  
+  // Calculate scale based on virtual width vs actual width
+  const scale = containerWidth / sceneWidth;
+  
+  // Set stage dimensions and scale
+  stage.width(sceneWidth * scale);
+  stage.height(sceneHeight * scale);
+  stage.scale({ x: scale, y: scale });
+}
+
+// This works but probably will need more work since scene is dragable and zoomable
+// Initial fit
+//fitStageIntoParentContainer();
+
+// Adapt the stage on window resize
+//window.addEventListener('resize', fitStageIntoParentContainer);

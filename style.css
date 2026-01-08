@@ -1,0 +1,63 @@
+html, body{
+    height: 100%;
+    width: 100%;
+    display: inline-block; /* shrink to fit */
+    margin: 0;
+    padding: 0;
+}
+
+header{
+    
+    background-color: beige;
+
+    text-align: center;
+    font-weight: 600;
+    height: 5%;
+}
+   
+
+footer{
+    background-color: blueviolet;
+    color: white;
+    text-align: center;
+    height: 5%;
+}
+
+#container{
+    /*display: inline-block;*/
+    background-color: chocolate;
+    align-items: center;
+    justify-content: center;
+    /*padding: 16px;*/
+    height: 100%;
+    width:100%;
+}
+/*parent*/
+.fit-wrapper {
+    overflow: hidden;
+    position: relative;
+    width:100%;
+    height:100%;
+    
+}
+
+#mid{
+    display:block;
+    width: 100%;
+    height: 90%;
+    display: flex;
+}
+
+.aside-left
+{
+    display:block;
+    width: 25%;
+    background-color: purple;
+}
+
+.aside-right
+{
+    display:block;
+    width: 25%;
+    background-color: green;
+}
