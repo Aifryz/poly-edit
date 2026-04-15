@@ -1,4 +1,6 @@
 
+//const { Matrix3D } = require('./math.js');
+import { Matrix3D } from './math.js';
 
 class GridLayer {
     display() {
@@ -38,15 +40,23 @@ class Polygon {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         const vertArray = [];
-        const span = 0.05;
+        //const span = 0.05;
+        const span = 20;
         for (const vert of this.verts) {
             vertArray.push(vert.x, vert.y);
+            // also push center, so 4 floats per vert
+            vertArray.push(vert.x+span/2, vert.y+span/2);
             vertArray.push(vert.x+span, vert.y);
+            vertArray.push(vert.x+span/2, vert.y+span/2);
             vertArray.push(vert.x+span, vert.y+span);
+            vertArray.push(vert.x+span/2, vert.y+span/2);
 
             vertArray.push(vert.x, vert.y);
+            vertArray.push(vert.x+span/2, vert.y+span/2);
             vertArray.push(vert.x+span, vert.y+span);
+            vertArray.push(vert.x+span/2, vert.y+span/2);
             vertArray.push(vert.x, vert.y+span);
+            vertArray.push(vert.x+span/2, vert.y+span/2);
             
         }
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertArray), gl.STATIC_DRAW);
@@ -71,9 +81,16 @@ class Polygon {
 
         // look up where the vertex data needs to go.
         var positionLocation = gl.getAttribLocation(program, "a_position");
+        var centerLocation = gl.getAttribLocation(program, "a_center");
+        var worldToCanvasLocation = gl.getUniformLocation(program, "u_WorldToCanvas");
+        var canvasToClipLocation = gl.getUniformLocation(program, "u_CanvasToClip");
+
 
         this.programParams = {
             positionLocation: positionLocation,
+            centerLocation: centerLocation,
+            worldToCanvasLocation: worldToCanvasLocation,
+            canvasToClipLocation: canvasToClipLocation,
             program: program
         }
     }
@@ -81,7 +98,21 @@ class Polygon {
     draw(gl) {
         // draw
         gl.enableVertexAttribArray(this.programParams.positionLocation);
-        gl.vertexAttribPointer(this.programParams.positionLocation, 2, gl.FLOAT, false, 0, 0);
+        gl.vertexAttribPointer(this.programParams.positionLocation, 2, gl.FLOAT, false, 4*4, 0);
+
+        // setup center location
+        gl.enableVertexAttribArray(this.programParams.centerLocation);
+        gl.vertexAttribPointer(this.programParams.centerLocation, 2, gl.FLOAT, false, 4*4, 2*4);
+
+        // Scale down to clip space (-1 to 1 range)
+        // just scale is needed to convert here
+        const scale = Matrix3D.scale(1/640*2, 1/480*2);
+        const canvasToClip = scale.toWebGLUniform();
+        gl.uniformMatrix3fv(this.programParams.canvasToClipLocation, false, canvasToClip);
+
+        const worldToCanvas = Matrix3D.identity().toWebGLUniform();
+        gl.uniformMatrix3fv(this.programParams.worldToCanvasLocation, false, worldToCanvas);
+
 
         // draw
         gl.drawArrays(gl.TRIANGLES, 0, this.elemCount);
@@ -103,9 +134,23 @@ function makeVertexShader(gl) {
     // Extract the content of the script element
     const shaderSource = `
         attribute vec2 a_position;
+        attribute vec2 a_center; 
+
+        // Canvas to clip space transform
+        uniform mat3 u_CanvasToClip;
+        uniform mat3 u_WorldToCanvas;
+
+        varying vec2 v_distFromCenter;
 
         void main() {
-            gl_Position = vec4(a_position, 0, 1);
+            vec2 pix_pos = vec4(u_WorldToCanvas * vec3(a_position, 1.0), 1.0).xy;
+            vec2 center = vec4(u_WorldToCanvas * vec3(a_center, 1.0), 1.0).xy;
+
+            v_distFromCenter = (pix_pos - center).xy;
+
+            // to clip space
+            pix_pos = vec4(u_CanvasToClip * vec3(pix_pos, 1.0), 1.0).xy;
+            gl_Position = vec4(pix_pos, 0.0, 1.0);
         }`
 
     // Create a shader object
@@ -126,8 +171,19 @@ function makeVertexShader(gl) {
 function makeFragmentShader(gl) {
     // Extract the content of the script element
         const shaderSource = `
+        precision highp float;
+        varying vec2 v_distFromCenter;
         void main() {
-            gl_FragColor = vec4(0,1,0,1);  // green
+            float red = abs(v_distFromCenter.x * 100.01);
+            float green = abs(v_distFromCenter.y * 100.01);
+            float dist = length(v_distFromCenter);
+            if(dist > 5.0) {
+                discard; // discard pixels outside the radius
+            }
+            vec4 color = vec4(1, 0, 0, 1);
+            gl_FragColor = color;
+            //gl_FragColor = vec4(red, green, 0, 1);
+            //gl_FragColor = vec4(0,1,0,1);  // green
         }`
 
 
@@ -172,14 +228,27 @@ function main() {
   // Ok, draw some stuff
 
   let poly = new Polygon();
-  poly.addPoint(-0.5, -0.5);
-  poly.addPoint(0.5, -0.5);
-  poly.addPoint(0.0, 0.5);
+  poly.addPoint(-100, -100);
+  poly.addPoint(100, -100);
+  poly.addPoint(0, 100);
+  poly.addPoint(100, 100);
 
   poly.prepareProgram(gl);
   poly.prepareBuffer(gl);
   poly.draw(gl);
 
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left - canvas.width/2;
+    const y = -(e.clientY - rect.top - canvas.height/2);
 
+    
+
+
+    console.log(`Clicked at: ${x}, ${y}`);
+    poly.addPoint(x, y);
+    poly.prepareBuffer(gl);
+    poly.draw(gl);
+  });
 
 }
