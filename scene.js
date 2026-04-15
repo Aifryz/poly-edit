@@ -280,7 +280,15 @@ export class Scene {
         const yw = -y + this.canvas.height / 2;
         const xw = x - this.canvas.width / 2;
 
-        return {x: xw, y: yw};
+        // yw, xw are now in corrected canvas coords with origin at center and y flipped
+        // now apply inverse of worldToCanvas transform to get world coords
+        const invScale = 1 / this.scale;
+        //const wx = xw * invScale - this.position.x;
+        //const wy = yw * invScale - this.position.y;
+        const wx = xw * invScale - this.position.x * invScale;
+        const wy = yw * invScale - this.position.y * invScale;
+
+        return {x: wx, y: wy};
     }
 
     update() {
