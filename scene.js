@@ -10,10 +10,18 @@ function makeVertexShader(gl) {
         uniform mat3 u_CanvasToClip;
         uniform mat3 u_WorldToCanvas;
 
+        uniform float u_CircleRadius;
+
         varying vec2 v_distFromCenter;
 
         void main() {
-            vec2 pix_pos = vec4(u_WorldToCanvas * vec3(a_position, 1.0), 1.0).xy;
+            vec2 offset = a_position - a_center;
+            // Scale to circle radius in pixels
+            offset = offset * u_CircleRadius;
+
+            vec2 pp_raw = a_center + offset;
+
+            vec2 pix_pos = vec4(u_WorldToCanvas * vec3(pp_raw, 1.0), 1.0).xy;
             vec2 center = vec4(u_WorldToCanvas * vec3(a_center, 1.0), 1.0).xy;
 
             v_distFromCenter = (pix_pos - center).xy;
@@ -43,11 +51,12 @@ function makeFragmentShader(gl) {
         const shaderSource = `
         precision highp float;
         varying vec2 v_distFromCenter;
+        //uniform float u_CircleRadius;
         void main() {
             float red = abs(v_distFromCenter.x * 100.01);
             float green = abs(v_distFromCenter.y * 100.01);
             float dist = length(v_distFromCenter);
-            if(dist > 5.0) {
+            if(dist > 5.0) { // hack, in fragment shader the radius should not be scaled
                 discard; // discard pixels outside the radius
             }
             vec4 color = vec4(1, 0, 0, 1);
@@ -80,6 +89,7 @@ class Polygon {
     constructor() {
         this.verts = [];
         this.buffer = null;
+        this.circleRadius = 5;
     }
 
     addPoint(x, y) {
@@ -93,8 +103,8 @@ class Polygon {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         const vertArray = [];
-        //const span = 0.05;
-        const span = 20;
+        // Hack, just normalized offsets which will be adjusted in the shader
+        const span = 2;
         for (const vert of this.verts) {
 
             vertArray.push(vert.x - span / 2, vert.y - span / 2);
@@ -138,6 +148,7 @@ class Polygon {
         var centerLocation = gl.getAttribLocation(program, "a_center");
         var worldToCanvasLocation = gl.getUniformLocation(program, "u_WorldToCanvas");
         var canvasToClipLocation = gl.getUniformLocation(program, "u_CanvasToClip");
+        var circleRadiusLocation = gl.getUniformLocation(program, "u_CircleRadius");
 
 
         this.programParams = {
@@ -145,6 +156,7 @@ class Polygon {
             centerLocation: centerLocation,
             worldToCanvasLocation: worldToCanvasLocation,
             canvasToClipLocation: canvasToClipLocation,
+            circleRadiusLocation: circleRadiusLocation,
             program: program
         }
     }
@@ -166,6 +178,9 @@ class Polygon {
 
         const worldToCanvas = transform.toWebGLUniform();
         gl.uniformMatrix3fv(this.programParams.worldToCanvasLocation, false, worldToCanvas);
+
+        const transformScale = Math.sqrt(transform.data[0] * transform.data[0] + transform.data[1] * transform.data[1]);
+        gl.uniform1f(this.programParams.circleRadiusLocation, this.circleRadius/transformScale);
 
 
         // draw
