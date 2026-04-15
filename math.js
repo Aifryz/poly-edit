@@ -50,6 +50,16 @@ export class Matrix3D {
         );
     }
 
+    // Translation matrix
+    static translate(tx, ty) {
+        return new Matrix3D(
+            1, 0, tx,
+            0, 1, ty,
+            0, 0, 1
+        );
+    }
+
+
     // Multiply two matrices
     multiply(other) {
         const result = new Matrix3D();
