@@ -1,35 +1,15 @@
 import { Matrix3D } from './math.js';
 
-function makeVertexShader(gl) {
-    // Extract the content of the script element
-    const shaderSource = `
-        attribute vec2 a_position;
-        attribute vec2 a_center; 
+async function loadShaderSource(path) {
+    const response = await fetch(path);
+    if (!response.ok) {
+        throw new Error(`Failed to load shader: ${path}`);
+    }
+    return await response.text();
+}
 
-        // Canvas to clip space transform
-        uniform mat3 u_CanvasToClip;
-        uniform mat3 u_WorldToCanvas;
-
-        uniform float u_CircleRadius;
-
-        varying vec2 v_distFromCenter;
-
-        void main() {
-            vec2 offset = a_position - a_center;
-            // Scale to circle radius in pixels
-            offset = offset * u_CircleRadius;
-
-            vec2 pp_raw = a_center + offset;
-
-            vec2 pix_pos = vec4(u_WorldToCanvas * vec3(pp_raw, 1.0), 1.0).xy;
-            vec2 center = vec4(u_WorldToCanvas * vec3(a_center, 1.0), 1.0).xy;
-
-            v_distFromCenter = (pix_pos - center).xy;
-
-            // to clip space
-            pix_pos = vec4(u_CanvasToClip * vec3(pix_pos, 1.0), 1.0).xy;
-            gl_Position = vec4(pix_pos, 0.0, 1.0);
-        }`
+async function makeVertexShader(gl) {
+    const shaderSource = await loadShaderSource('./shaders/circles.vsh');
 
     // Create a shader object
     const shader = gl.createShader(gl.VERTEX_SHADER);
@@ -46,25 +26,8 @@ function makeVertexShader(gl) {
     return shader;
 }
 
-function makeFragmentShader(gl) {
-    // Extract the content of the script element
-        const shaderSource = `
-        precision highp float;
-        varying vec2 v_distFromCenter;
-        //uniform float u_CircleRadius;
-        void main() {
-            float red = abs(v_distFromCenter.x * 100.01);
-            float green = abs(v_distFromCenter.y * 100.01);
-            float dist = length(v_distFromCenter);
-            if(dist > 5.0) { // hack, in fragment shader the radius should not be scaled
-                discard; // discard pixels outside the radius
-            }
-            vec4 color = vec4(1, 0, 0, 1);
-            gl_FragColor = color;
-            //gl_FragColor = vec4(red, green, 0, 1);
-            //gl_FragColor = vec4(0,1,0,1);  // green
-        }`
-
+async function makeFragmentShader(gl) {
+    const shaderSource = await loadShaderSource('./shaders/circles.fsh');
 
     // Create a shader object
     const shader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -128,10 +91,10 @@ class Polygon {
         this.elemCount = this.verts.length * 6; // 6 verts per quad
     }
 
-    prepareProgram(gl) {
+    async prepareProgram(gl) {
         // setup a GLSL program
-        var vertexShader = makeVertexShader(gl);
-        var fragmentShader = makeFragmentShader(gl);
+        var vertexShader = await makeVertexShader(gl);
+        var fragmentShader = await makeFragmentShader(gl);
         //var program = createProgram(gl, [vertexShader, fragmentShader]);
         var program = gl.createProgram();
         gl.attachShader(program, vertexShader);
@@ -188,6 +151,12 @@ class Polygon {
     }
 }
 
+class Grid {
+    draw(gl, transform) {
+        
+    }
+}
+
 export class Scene {
     constructor(canvas) {
         this.canvas = canvas;
@@ -221,9 +190,13 @@ export class Scene {
         this.poly.addPoint(0, 100);
         this.poly.addPoint(100, 100);
 
-        this.poly.prepareProgram(gl);
-        this.poly.prepareBuffer(gl);
-        this.render();
+        // Initialize shaders asynchronously
+        this.poly.prepareProgram(gl).then(() => {
+            this.poly.prepareBuffer(gl);
+            this.render();
+        }).catch(err => {
+            console.error('Failed to initialize shaders:', err);
+        });
         
         let isDragging = false;
         let moved = false;
