@@ -137,7 +137,8 @@ class Polygon {
 
         // Scale down to clip space (-1 to 1 range)
         // just scale is needed to convert here
-        const scale = Matrix3D.scale(1/640*2, 1/480*2);
+        
+        const scale = Matrix3D.scale(1/gl.canvas.clientWidth*2, 1/gl.canvas.clientHeight*2);
         const canvasToClip = scale.toWebGLUniform();
         gl.uniformMatrix3fv(this.programParams.canvasToClipLocation, false, canvasToClip);
 
@@ -221,7 +222,7 @@ class Grid {
 
         // Scale down to clip space (-1 to 1 range)
         // just scale is needed to convert here
-        const scale = Matrix3D.scale(1/640*2, 1/480*2);
+        const scale = Matrix3D.scale(1/gl.canvas.clientWidth*2, 1/gl.canvas.clientHeight*2);
         const canvasToClip = scale.toWebGLUniform();
         gl.uniformMatrix3fv(this.programParams.canvasToClipLocation, false, canvasToClip);
 
@@ -362,8 +363,10 @@ export class Scene {
 
     // Transform from canvas pixel coordinates to world coordinates
     canvasToWorldCoords(x, y) {
-        const yw = -y + this.canvas.height / 2;
-        const xw = x - this.canvas.width / 2;
+        const yw = -y + this.canvas.clientHeight / 2;
+        const xw = x - this.canvas.clientWidth / 2;
+
+        //console.log(this.canvas.clientWidth, this.canvas.clientHeight);
 
         // yw, xw are now in corrected canvas coords with origin at center and y flipped
         // now apply inverse of worldToCanvas transform to get world coords
@@ -380,7 +383,27 @@ export class Scene {
         
     }
 
+    resizeCanvasToDisplaySize(canvas) {
+        // Lookup the size the browser is displaying the canvas in CSS pixels.
+        const displayWidth  = canvas.clientWidth;
+        const displayHeight = canvas.clientHeight;
+ 
+        // Check if the canvas is not the same size.
+        const needResize = canvas.width  !== displayWidth ||
+                     canvas.height !== displayHeight;
+ 
+        if (needResize) {
+            // Make the canvas the same size
+            canvas.width  = displayWidth;
+            canvas.height = displayHeight;
+        }
+ 
+        return needResize;
+    }
+
     render() {
+        this.resizeCanvasToDisplaySize(this.canvas);
+        this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
         // Set clear color to black, fully opaque
         this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
         // Clear the color buffer with specified clear color
