@@ -1,0 +1,21 @@
+Priority:
+V0.1
+- Display the coordinates
+- Remove points
+- Undo
+- Edit points via 
+- Draw lines between points
+- Basic export
+
+V0.2
+- Customize grid (pass spacing, thickness, )
+- Customize point display(size, color)
+- Support multiple polygons
+- Select point by touch
+
+V0.3
+
+Other:
+- touch screen support
+- select multiple points
+- snap to grid
