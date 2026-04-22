@@ -155,6 +155,10 @@ class Polygon {
 }
 
 class Grid {
+    constructor() {
+        // Just for testing
+        this.bounds = {xmin: -500, xmax: 500, ymin: -500, ymax: 500};
+    }
     async prepareProgram(gl) {
         // setup a GLSL program
         var vertexShader = await makeVertexShader(gl, './shaders/grid.vsh');
@@ -188,6 +192,10 @@ class Grid {
         }
     }
 
+    setBounds(xmin, xmax, ymin, ymax) {
+        this.bounds = {xmin, xmax, ymin, ymax};
+    }
+
     prepareBuffer(gl) {
         if(this.buffer == null) {
             this.buffer = gl.createBuffer();
@@ -195,14 +203,14 @@ class Grid {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
         const vertArray = [];
-        // hack for now, just do 1000x1000 square
-        vertArray.push(-500, -500);
-        vertArray.push(500, -500);
-        vertArray.push(500, 500);
+        
+        vertArray.push(this.bounds.xmin, this.bounds.ymin);
+        vertArray.push(this.bounds.xmax, this.bounds.ymin);
+        vertArray.push(this.bounds.xmax, this.bounds.ymax);
 
-        vertArray.push(-500, -500);
-        vertArray.push(500, 500);
-        vertArray.push(-500, 500);
+        vertArray.push(this.bounds.xmin, this.bounds.ymin);
+        vertArray.push(this.bounds.xmax, this.bounds.ymax);
+        vertArray.push(this.bounds.xmin, this.bounds.ymax);
 
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertArray), gl.STATIC_DRAW);
 
@@ -401,6 +409,22 @@ export class Scene {
         return needResize;
     }
 
+    resizeGrid() {
+        const tl = this.canvasToWorldCoords(0, 0);
+        const br = this.canvasToWorldCoords(this.canvas.clientWidth, this.canvas.clientHeight);
+
+        //console.log(`Grid resize: tl ${tl.x}, ${tl.y} br ${br.x}, ${br.y}`);
+
+        const xmin = Math.min(tl.x, br.x);
+        const xmax = Math.max(tl.x, br.x);
+        const ymin = Math.min(tl.y, br.y);
+        const ymax = Math.max(tl.y, br.y);
+
+        this.grid.setBounds(xmin, xmax, ymin, ymax);
+        this.grid.prepareBuffer(this.gl);
+    }
+
+
     render() {
         this.resizeCanvasToDisplaySize(this.canvas);
         this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -408,6 +432,8 @@ export class Scene {
         this.gl.clearColor(0.0, 0.0, 0.0, 1.0);
         // Clear the color buffer with specified clear color
         this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+
+        this.resizeGrid();
 
         // Prepare transform matrix
         let transform = Matrix3D.scale(this.scale, this.scale);
