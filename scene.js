@@ -8,8 +8,8 @@ async function loadShaderSource(path) {
     return await response.text();
 }
 
-async function makeVertexShader(gl) {
-    const shaderSource = await loadShaderSource('./shaders/circles.vsh');
+async function makeVertexShader(gl, path) {
+    const shaderSource = await loadShaderSource(path);
 
     // Create a shader object
     const shader = gl.createShader(gl.VERTEX_SHADER);
@@ -26,8 +26,8 @@ async function makeVertexShader(gl) {
     return shader;
 }
 
-async function makeFragmentShader(gl) {
-    const shaderSource = await loadShaderSource('./shaders/circles.fsh');
+async function makeFragmentShader(gl, path) {
+    const shaderSource = await loadShaderSource(path);
 
     // Create a shader object
     const shader = gl.createShader(gl.FRAGMENT_SHADER);
@@ -93,8 +93,8 @@ class Polygon {
 
     async prepareProgram(gl) {
         // setup a GLSL program
-        var vertexShader = await makeVertexShader(gl);
-        var fragmentShader = await makeFragmentShader(gl);
+        var vertexShader = await makeVertexShader(gl, './shaders/circles.vsh');
+        var fragmentShader = await makeFragmentShader(gl, './shaders/circles.fsh');
         //var program = createProgram(gl, [vertexShader, fragmentShader]);
         var program = gl.createProgram();
         gl.attachShader(program, vertexShader);
@@ -125,6 +125,8 @@ class Polygon {
     }
 
     draw(gl, transform) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.useProgram(this.programParams.program);
         // draw
         gl.enableVertexAttribArray(this.programParams.positionLocation);
         gl.vertexAttribPointer(this.programParams.positionLocation, 2, gl.FLOAT, false, 4*4, 0);
@@ -152,8 +154,86 @@ class Polygon {
 }
 
 class Grid {
-    draw(gl, transform) {
+    async prepareProgram(gl) {
+        // setup a GLSL program
+        var vertexShader = await makeVertexShader(gl, './shaders/grid.vsh');
+        var fragmentShader = await makeFragmentShader(gl, './shaders/grid.fsh');
         
+        var program = gl.createProgram();
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program);
+        if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+            const info = gl.getProgramInfoLog(program);
+            throw new Error(`Could not compile WebGL program. \n\n${info}`);
+        }
+        gl.useProgram(program);
+
+        // look up where the vertex data needs to go.
+        var positionLocation = gl.getAttribLocation(program, "a_position");
+        //var centerLocation = gl.getAttribLocation(program, "a_center");
+        var worldToCanvasLocation = gl.getUniformLocation(program, "u_WorldToCanvas");
+        var canvasToClipLocation = gl.getUniformLocation(program, "u_CanvasToClip");
+        //var circleRadiusLocation = gl.getUniformLocation(program, "u_CircleRadius");
+
+
+        this.programParams = {
+            positionLocation: positionLocation,
+          //  centerLocation: centerLocation,
+            worldToCanvasLocation: worldToCanvasLocation,
+            canvasToClipLocation: canvasToClipLocation,
+           // circleRadiusLocation: circleRadiusLocation,
+            program: program
+        }
+    }
+
+    prepareBuffer(gl) {
+        if(this.buffer == null) {
+            this.buffer = gl.createBuffer();
+        }
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        const vertArray = [];
+        // hack for now, just do 1000x1000 square
+        vertArray.push(-500, -500);
+        vertArray.push(500, -500);
+        vertArray.push(500, 500);
+
+        vertArray.push(-500, -500);
+        vertArray.push(500, 500);
+        vertArray.push(-500, 500);
+
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertArray), gl.STATIC_DRAW);
+
+        this.elemCount = 2*3; // Just 2 triangles
+    }
+
+    draw(gl, transform) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.buffer);
+        gl.useProgram(this.programParams.program);
+        // draw
+        gl.enableVertexAttribArray(this.programParams.positionLocation);
+        gl.vertexAttribPointer(this.programParams.positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+        // setup center location
+        //gl.enableVertexAttribArray(this.programParams.centerLocation);
+        //gl.vertexAttribPointer(this.programParams.centerLocation, 2, gl.FLOAT, false, 4*4, 2*4);
+
+        // Scale down to clip space (-1 to 1 range)
+        // just scale is needed to convert here
+        const scale = Matrix3D.scale(1/640*2, 1/480*2);
+        const canvasToClip = scale.toWebGLUniform();
+        gl.uniformMatrix3fv(this.programParams.canvasToClipLocation, false, canvasToClip);
+
+        const worldToCanvas = transform.toWebGLUniform();
+        gl.uniformMatrix3fv(this.programParams.worldToCanvasLocation, false, worldToCanvas);
+
+        //const transformScale = Math.sqrt(transform.data[0] * transform.data[0] + transform.data[1] * transform.data[1]);
+        //gl.uniform1f(this.programParams.circleRadiusLocation, this.circleRadius/transformScale);
+
+
+        // draw
+        gl.drawArrays(gl.TRIANGLES, 0, this.elemCount);
     }
 }
 
@@ -191,13 +271,30 @@ export class Scene {
         this.poly.addPoint(100, 100);
 
         // Initialize shaders asynchronously
-        this.poly.prepareProgram(gl).then(() => {
+
+        this.grid = new Grid();
+
+        Promise.all([
+            this.poly.prepareProgram(gl),
+            this.grid.prepareProgram(gl)
+        ]).then(() => {
             this.poly.prepareBuffer(gl);
+            this.grid.prepareBuffer(gl);
             this.render();
         }).catch(err => {
             console.error('Failed to initialize shaders:', err);
         });
-        
+
+        /*
+        this.grid.prepareProgram(gl).then(() => {
+            this.grid.prepareBuffer(gl);
+            // just re/render scene i guess?
+            this.render();
+        }).catch(err => {
+            console.error('Failed to initialize grid shaders:', err);
+        });
+        */
+
         let isDragging = false;
         let moved = false;
         let lastMousePos = {x: 0, y: 0};
@@ -252,7 +349,7 @@ export class Scene {
                 //console.log(`Dragging: ${dx}, ${dy}`);
                 this.position.x += dx;
                 this.position.y -= dy;
-                console.log(`Position: ${this.position.x}, ${this.position.y}`);
+                //console.log(`Position: ${this.position.x}, ${this.position.y}`);
                 this.render();
                 lastMousePos = {x: e.clientX, y: e.clientY};
             }
@@ -292,6 +389,9 @@ export class Scene {
         // Prepare transform matrix
         let transform = Matrix3D.scale(this.scale, this.scale);
         transform = Matrix3D.translate(this.position.x, this.position.y).multiply(transform);
+        //this.poly.draw(this.gl, transform);
+
+        this.grid.draw(this.gl, transform);
         this.poly.draw(this.gl, transform);
     }
 
