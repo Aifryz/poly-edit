@@ -2,9 +2,6 @@ import { makeVertexShader, makeFragmentShader } from './gl-utils.js';
 import { Matrix3D } from './math.js';
 
 export class Polygon {
-    // for now - just list of verts so we can test the shader
-    // list of verts
-    // color
     constructor() {
         this.verts = [];
         this.buffer = null;
@@ -103,7 +100,6 @@ export class Polygon {
 
         const transformScale = Math.sqrt(transform.data[0] * transform.data[0] + transform.data[1] * transform.data[1]);
         gl.uniform1f(this.programParams.circleRadiusLocation, this.circleRadius/transformScale);
-
 
         // draw
         gl.drawArrays(gl.TRIANGLES, 0, this.elemCount);

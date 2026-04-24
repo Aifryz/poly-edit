@@ -35,10 +35,11 @@ export class Scene {
         this.poly.addPoint(0, 100);
         this.poly.addPoint(100, 100);
 
-        // Initialize shaders asynchronously
-
+        this.updatePointsTable();
+        
         this.grid = new Grid();
 
+        // Initialize shaders asynchronously
         Promise.all([
             this.poly.prepareProgram(gl),
             this.grid.prepareProgram(gl)
@@ -49,16 +50,6 @@ export class Scene {
         }).catch(err => {
             console.error('Failed to initialize shaders:', err);
         });
-
-        /*
-        this.grid.prepareProgram(gl).then(() => {
-            this.grid.prepareBuffer(gl);
-            // just re/render scene i guess?
-            this.render();
-        }).catch(err => {
-            console.error('Failed to initialize grid shaders:', err);
-        });
-        */
 
         let isDragging = false;
         let moved = false;
@@ -81,6 +72,7 @@ export class Scene {
             this.poly.addPoint(worldPos.x, worldPos.y);
             this.poly.prepareBuffer(gl);
             this.render();
+            this.updatePointsTable();
         });
 
         canvas.addEventListener('wheel', (e) => {
@@ -108,10 +100,7 @@ export class Scene {
                 const dx = e.clientX - lastMousePos.x;
                 const dy = e.clientY - lastMousePos.y;
                 // Update the worldToCanvas transform based on dx, dy
-                // For simplicity, we can just adjust the translation components of the transform
-                // In a full implementation, you'd want to maintain a proper transform matrix
-                // Here we just log the drag for demonstration
-                //console.log(`Dragging: ${dx}, ${dy}`);
+               
                 this.position.x += dx;
                 this.position.y -= dy;
                 //console.log(`Position: ${this.position.x}, ${this.position.y}`);
@@ -125,6 +114,27 @@ export class Scene {
 
     }
 
+    updatePointsTable() {
+        const tbody = document.getElementById('points-tbody');
+        tbody.innerHTML = '';
+        this.poly.verts.forEach((point, index) => {
+            const row = document.createElement('tr');
+            const indexCell = document.createElement('td');
+            indexCell.textContent = index;
+            const xCell = document.createElement('td');
+            xCell.textContent = point.x.toFixed(2);
+            const yCell = document.createElement('td');
+            yCell.textContent = point.y.toFixed(2);
+            row.appendChild(indexCell);
+            row.appendChild(xCell);
+            row.appendChild(yCell);
+            tbody.appendChild(row);
+        });
+        // Auto-scroll to the last item
+        const container = document.getElementById('points-table-container');
+        container.scrollTop = container.scrollHeight;
+    }
+
     // Transform from canvas pixel coordinates to world coordinates
     canvasToWorldCoords(x, y) {
         const yw = -y + this.canvas.clientHeight / 2;
@@ -135,8 +145,6 @@ export class Scene {
         // yw, xw are now in corrected canvas coords with origin at center and y flipped
         // now apply inverse of worldToCanvas transform to get world coords
         const invScale = 1 / this.scale;
-        //const wx = xw * invScale - this.position.x;
-        //const wy = yw * invScale - this.position.y;
         const wx = xw * invScale - this.position.x * invScale;
         const wy = yw * invScale - this.position.y * invScale;
 
@@ -168,8 +176,6 @@ export class Scene {
     resizeGrid() {
         const tl = this.canvasToWorldCoords(0, 0);
         const br = this.canvasToWorldCoords(this.canvas.clientWidth, this.canvas.clientHeight);
-
-        //console.log(`Grid resize: tl ${tl.x}, ${tl.y} br ${br.x}, ${br.y}`);
 
         const xmin = Math.min(tl.x, br.x);
         const xmax = Math.max(tl.x, br.x);
