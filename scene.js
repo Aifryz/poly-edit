@@ -2,6 +2,73 @@ import { Matrix3D } from './math.js';
 import {Polygon} from './polygon.js';
 import {Grid} from './grid.js';
 
+// commands
+// add poly point
+// remove poly point
+// move poly point
+
+class AddPointCommand {
+    constructor(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    execute(scene) {
+        scene.poly.addPoint(this.x, this.y);
+        scene.poly.prepareBuffer(scene.gl);
+        scene.render();
+        scene.updatePointsTable();
+    }
+
+    undo(scene) {
+        scene.poly.removeLastPoint();
+        scene.poly.prepareBuffer(scene.gl);
+        scene.render();
+        scene.updatePointsTable();
+    }
+}
+
+class RemovePointCommand {
+    constructor(index) {
+        this.index = index;
+    }
+
+    execute(scene) {
+        scene.poly.removePoint(this.index);
+        scene.poly.prepareBuffer(scene.gl);
+        scene.render();
+        scene.updatePointsTable();
+    }
+
+    undo(scene) {
+        // This would require storing the point's previous position
+        // For now, we'll just re-add the point at its original position
+        scene.poly.addPoint(this.x, this.y);
+        scene.poly.prepareBuffer(scene.gl);
+        scene.render();
+        scene.updatePointsTable();
+    }
+}
+
+class MovePointCommand {
+    constructor(index, newX, newY) {
+        this.index = index;
+
+        this.newX = newX;
+        this.newY = newY;
+    }   
+}
+
+// later
+// add polygon
+// close polygon
+// set polygon color
+// maybe shared - set polygon params?
+
+// optionals
+// move canvas
+// zoom canvas
+
 export class Scene {
     constructor(canvas) {
         this.canvas = canvas;
@@ -30,10 +97,10 @@ export class Scene {
 
         // Ok, draw some stuff
         //let poly = new Polygon();
-        this.poly.addPoint(-100, -100);
-        this.poly.addPoint(100, -100);
-        this.poly.addPoint(0, 100);
-        this.poly.addPoint(100, 100);
+        //this.poly.addPoint(-100, -100);
+        //this.poly.addPoint(100, -100);
+        //this.poly.addPoint(0, 100);
+        //this.poly.addPoint(100, 100);
 
         this.updatePointsTable();
         
@@ -69,10 +136,13 @@ export class Scene {
 
             console.log(`World at: ${worldPos.x}, ${worldPos.y}`);
 
-            this.poly.addPoint(worldPos.x, worldPos.y);
-            this.poly.prepareBuffer(gl);
-            this.render();
-            this.updatePointsTable();
+            //this.poly.addPoint(worldPos.x, worldPos.y);
+            //this.poly.prepareBuffer(gl);
+            //this.render();
+            //this.updatePointsTable();
+
+            const cmd = new AddPointCommand(worldPos.x, worldPos.y);
+            this.applyCommand(cmd);
         });
 
         canvas.addEventListener('wheel', (e) => {
@@ -112,6 +182,59 @@ export class Scene {
             isDragging = false;
         });
 
+        this.undoStack = [];
+        this.redoStack = [];
+
+        const undoBtn = document.getElementById('undo-btn');
+        undoBtn.addEventListener('click', () => {
+            console.log('undo');
+            this.handleUndo();
+            /*
+            this.poly.removeLastPoint();
+            this.poly.prepareBuffer(gl);
+            this.render();
+            this.updatePointsTable();
+            */
+        });
+
+        const redoBtn = document.getElementById('redo-btn');
+        redoBtn.addEventListener('click', () => {
+            console.log('redo');
+            this.handleRedo();
+            /*
+            this.poly.restoreLastRemovedPoint();
+            this.poly.prepareBuffer(gl);
+            this.render();
+            this.updatePointsTable();
+            */
+        });
+
+
+    }
+
+    handleUndo() {
+        // take action from undo stack
+        // revert
+        // push to redo stack
+        const cmd = this.undoStack.pop();
+        if (cmd) {
+            cmd.undo(this);
+            this.redoStack.push(cmd);
+        }
+    }
+
+    handleRedo() {
+        const cmd = this.redoStack.pop();
+        if (cmd) {
+            cmd.execute(this);
+            this.undoStack.push(cmd);
+        }
+    }
+
+    applyCommand(cmd) {
+        cmd.execute(this);
+        this.undoStack.push(cmd);
+        this.redoStack = []; // clear redo stack on new action
     }
 
     updatePointsTable() {

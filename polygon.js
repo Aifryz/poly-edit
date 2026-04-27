@@ -1,6 +1,12 @@
 import { makeVertexShader, makeFragmentShader } from './gl-utils.js';
 import { Matrix3D } from './math.js';
 
+class PolygonModel {
+    constructor() {
+        this.verts = [];
+    }
+}
+
 export class Polygon {
     constructor() {
         this.verts = [];
@@ -10,6 +16,10 @@ export class Polygon {
 
     addPoint(x, y) {
         this.verts.push({x:x, y:y});
+    }
+
+    removeLastPoint() {
+        this.verts.pop();
     }
 
     prepareBuffer(gl) {
