@@ -209,6 +209,16 @@ export class Scene {
             */
         });
 
+        // Add keyboard shortcuts for undo/redo
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                this.handleUndo();
+            } else if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+                e.preventDefault();
+                this.handleRedo();
+            }
+        });
 
     }
 
